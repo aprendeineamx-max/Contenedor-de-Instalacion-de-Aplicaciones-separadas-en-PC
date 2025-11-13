@@ -5,9 +5,6 @@ const nextConfig = {
       fullUrl: true,
     },
   },
-  experimental: {
-    serverActions: true,
-  },
 };
 
 export default nextConfig;

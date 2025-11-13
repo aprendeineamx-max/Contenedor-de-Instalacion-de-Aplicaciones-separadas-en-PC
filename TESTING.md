@@ -15,6 +15,7 @@
 3. **API/Backend**  
    - Contratos OpenAPI/gRPC con pruebas contractuales.  
    - Simulaciones de concurrencia en creación/ejecución de contenedores.
+   - Tests para los RPC (`ListContainers`, `CreateContainer`, etc.) usando `tonic` y datos mock.
 4. **Frontend e2e**  
    - Playwright/Cypress para flujos de UI (crear contenedor, lanzar app, exportar).
 
@@ -31,4 +32,3 @@
 1. Configurar toolchain de pruebas (cargo-nextest, vitest, Playwright).  
 2. Crear contenedor de ejemplo para demostración automática.  
 3. Integrar pruebas básicas en CI tan pronto como exista código ejecutable.
-

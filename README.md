@@ -21,6 +21,10 @@ Este repositorio alberga el desarrollo del sistema que permite instalar y ejecut
 - Rust 1.79+ y `cargo`.
 - Node.js 20+ y `npm`.
 
+Para instalar rápidamente en Windows:
+- `winget install Rustlang.Rustup` y luego `rustup default stable`.
+- `winget install OpenJS.NodeJS.LTS` (o instala la versión requerida desde nodejs.org).
+
 ### Pasos
 ```bash
 # Backend (API mock)
@@ -39,6 +43,10 @@ npm run dev
 ```
 
 > El backend expone `/healthz` y `/api/containers` (mock). La CLI ya consume esos endpoints para validar el wiring inicial.
+
+## APIs disponibles
+- REST (`docs/api.md`): `GET/POST/DELETE /api/containers` + `/healthz` en `http://localhost:8080`.
+- gRPC (`proto/containers.proto`): Servicio `containers.v1.ContainerService` en `0.0.0.0:50051`, pensado para comunicación agent <-> backend.
 
 ## Estado Actual
 - ✅ Especificación técnica inicial en `docs/spec.md`.

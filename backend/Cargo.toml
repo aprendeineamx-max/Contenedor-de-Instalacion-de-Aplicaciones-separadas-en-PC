@@ -13,3 +13,10 @@ tower = "0.5"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+tonic = { version = "0.11", features = ["transport"] }
+prost = "0.12"
+prost-types = "0.12"
+uuid = { version = "1.7", features = ["v4"] }
+
+[build-dependencies]
+tonic-build = "0.11"

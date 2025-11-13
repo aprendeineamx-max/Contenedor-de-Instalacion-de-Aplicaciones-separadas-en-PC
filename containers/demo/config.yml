@@ -1,0 +1,11 @@
+id: demo-browser
+name: Demo Browser
+version: "0.1.0"
+runtime:
+  build: "container-runtime@0.3.0"
+paths:
+  program_files: "rootfs/ProgramFiles"
+  appdata: "user/AppData/Roaming"
+  local_appdata: "user/LocalAppData"
+  temp: "temp"
+notes: "Manifiesto de ejemplo para validar el cargador del agent."

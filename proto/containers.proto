@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+package containers.v1;
+
+option go_package = "github.com/aprendeineamx-max/containers";
+
+message Container {
+  string id = 1;
+  string name = 2;
+  string version = 3;
+  string status = 4;
+}
+
+message ListContainersRequest {}
+
+message ListContainersResponse {
+  repeated Container containers = 1;
+}
+
+message CreateContainerRequest {
+  string name = 1;
+  string version = 2;
+}
+
+message CreateContainerResponse {
+  Container container = 1;
+}
+
+message GetContainerRequest {
+  string id = 1;
+}
+
+message GetContainerResponse {
+  Container container = 1;
+}
+
+message DeleteContainerRequest {
+  string id = 1;
+}
+
+message DeleteContainerResponse {
+  string id = 1;
+}
+
+service ContainerService {
+  rpc ListContainers(ListContainersRequest) returns (ListContainersResponse);
+  rpc CreateContainer(CreateContainerRequest) returns (CreateContainerResponse);
+  rpc GetContainer(GetContainerRequest) returns (GetContainerResponse);
+  rpc DeleteContainer(DeleteContainerRequest) returns (DeleteContainerResponse);
+}
+
