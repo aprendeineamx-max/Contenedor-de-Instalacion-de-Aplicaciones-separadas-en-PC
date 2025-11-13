@@ -1,7 +1,9 @@
 mod registry;
+mod runtime;
 
 use anyhow::Result;
 use registry::ContainerRegistry;
+use runtime::HookEngine;
 use tokio::signal;
 use tracing::{info, warn};
 
@@ -14,21 +16,29 @@ async fn main() -> Result<()> {
     );
 
     let registry = ContainerRegistry::load_from("containers").await?;
-    let manifests = registry.list();
-    if manifests.is_empty() {
+    let registered = registry.list();
+    let hook_engine = HookEngine::new();
+
+    if registered.is_empty() {
         warn!("No se encontraron contenedores registrados en ./containers");
     } else {
-        for manifest in manifests {
+        for container in &registered {
             info!(
-                container_id = manifest.id,
-                name = manifest.name,
-                version = manifest.version.as_deref().unwrap_or("latest"),
+                container_id = container.manifest.id.as_str(),
+                name = container.manifest.name.as_str(),
+                version = container.manifest.version.as_deref().unwrap_or("latest"),
                 "Contenedor registrado"
+            );
+
+            let plan = hook_engine.prepare(container).await?;
+            info!(
+                container_id = container.manifest.id.as_str(),
+                mounts = ?plan.mounts,
+                "Hook plan listo"
             );
         }
     }
 
-    // Placeholder: aquí se cargarán contenedores registrados y se levantará gRPC.
     wait_for_shutdown().await?;
 
     info!("Agent apagándose de forma segura.");

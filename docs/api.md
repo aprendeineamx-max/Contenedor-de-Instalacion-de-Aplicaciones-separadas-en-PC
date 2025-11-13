@@ -6,7 +6,7 @@ Base URL: `http://localhost:8080`
 | Método | Ruta | Descripción |
 | ------ | ---- | ----------- |
 | `GET` | `/healthz` | Estado del backend y versión en ejecución. |
-| `GET` | `/api/containers` | Lista contenedores registrados (mock en memoria por ahora). |
+| `GET` | `/api/containers` | Lista contenedores registrados. Soporta filtros. |
 | `POST` | `/api/containers` | Crea un contenedor placeholder y devuelve su resumen. |
 | `DELETE` | `/api/containers/:id` | Elimina el contenedor indicado. |
 
@@ -30,6 +30,12 @@ Respuesta:
   "status": "draft"
 }
 ```
+
+### Parámetros para `GET /api/containers`
+- `status`: filtra por estado (`draft`, `running`, etc.).
+- `search`: busca por coincidencias parciales en `id` o `name`.
+- `limit`: número máximo de registros (1-100, default 25).
+- `offset`: desplazamiento para paginación (default 0).
 
 ## gRPC
 - Puerto: `0.0.0.0:50051`
@@ -63,4 +69,3 @@ rpc ListContainers (ListContainersRequest) returns (ListContainersResponse);
 ```
 
 La CLI y el panel web consumirán los endpoints REST durante las primeras iteraciones, mientras que el agent/backplane utilizarán gRPC para operaciones internas y agentes remotos.
-

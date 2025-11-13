@@ -11,7 +11,7 @@ Este repositorio alberga el desarrollo del sistema que permite instalar y ejecut
 - `infrastructure/`: definiciones IaC, manifests de despliegue y scripts de instalación.
 
 ## Flujo de Trabajo Inicial
-1. Diseñar los contratos entre módulos (gRPC/REST) y el esquema de base de datos.
+1. Diseñar los contratos entre módulos (gRPC/REST) y el esquema de base de datos (SQLite por defecto).
 2. Implementar el runtime/agent mínimo que redirige rutas críticas de usuario.
 3. Levantar backend + frontend con datos simulados para iterar en la experiencia de usuario.
 4. Desarrollar el pipeline de captura de instaladores y exportación `.ctnr`.
@@ -27,7 +27,7 @@ Para instalar rápidamente en Windows:
 
 ### Pasos
 ```bash
-# Backend (API mock)
+# Backend (API con SQLite + gRPC)
 cargo run -p backend
 
 # Agent (placeholder runtime)
@@ -42,11 +42,15 @@ npm install
 npm run dev
 ```
 
-> El backend expone `/healthz` y `/api/containers` (mock). La CLI ya consume esos endpoints para validar el wiring inicial.
+> El backend expone `/healthz` y `/api/containers` sobre SQLite. La CLI ya consume esos endpoints para validar el wiring inicial.
 
 ## APIs disponibles
 - REST (`docs/api.md`): `GET/POST/DELETE /api/containers` + `/healthz` en `http://localhost:8080`.
 - gRPC (`proto/containers.proto`): Servicio `containers.v1.ContainerService` en `0.0.0.0:50051`, pensado para comunicación agent <-> backend.
+
+## Pruebas
+- Backend (REST + gRPC + SQLite): `cargo test -p backend`
+- CLI (contra servidor mock en memoria): `cargo test -p ctnr-cli`
 
 ## Estado Actual
 - ✅ Especificación técnica inicial en `docs/spec.md`.

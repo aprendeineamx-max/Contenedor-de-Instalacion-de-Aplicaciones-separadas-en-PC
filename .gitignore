@@ -12,6 +12,7 @@ frontend/node_modules/
 *.log
 .env
 .env.local
+data/
 
 # OS metadata
 Thumbs.db

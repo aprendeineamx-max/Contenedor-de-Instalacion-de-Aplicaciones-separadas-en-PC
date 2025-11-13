@@ -30,9 +30,21 @@ pub struct ContainerManifest {
     pub paths: PathConfig,
 }
 
+#[derive(Debug, Clone)]
+pub struct RegisteredContainer {
+    pub manifest: ContainerManifest,
+    pub root: PathBuf,
+}
+
+impl RegisteredContainer {
+    pub fn path(&self, relative: impl AsRef<Path>) -> PathBuf {
+        self.root.join(relative)
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct ContainerRegistry {
-    containers: HashMap<String, ContainerManifest>,
+    containers: HashMap<String, RegisteredContainer>,
 }
 
 impl ContainerRegistry {
@@ -59,13 +71,23 @@ impl ContainerRegistry {
             let manifest: ContainerManifest = serde_yaml::from_str(&manifest_content)
                 .with_context(|| format!("Manifiesto inválido en {}", manifest_path.display()))?;
 
-            containers.insert(manifest.id.clone(), manifest);
+            containers.insert(
+                manifest.id.clone(),
+                RegisteredContainer {
+                    manifest,
+                    root: entry.path(),
+                },
+            );
         }
 
         Ok(Self { containers })
     }
 
-    pub fn list(&self) -> Vec<&ContainerManifest> {
-        self.containers.values().collect()
+    pub fn list(&self) -> Vec<RegisteredContainer> {
+        self.containers.values().cloned().collect()
+    }
+
+    pub fn get(&self, id: &str) -> Option<&RegisteredContainer> {
+        self.containers.get(id)
     }
 }

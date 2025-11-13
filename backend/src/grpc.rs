@@ -1,12 +1,10 @@
-use crate::proto::container_service_server::{
-    ContainerService, ContainerServiceServer,
-};
+use crate::proto::container_service_server::{ContainerService, ContainerServiceServer};
 use crate::proto::{
     Container, CreateContainerRequest, CreateContainerResponse, DeleteContainerRequest,
     DeleteContainerResponse, GetContainerRequest, GetContainerResponse, ListContainersRequest,
     ListContainersResponse,
 };
-use crate::store::{ContainerRecord, Store};
+use crate::store::{ContainerRecord, ListFilter, Store};
 use anyhow::Result;
 use std::net::SocketAddr;
 use tonic::{Request, Response, Status};
@@ -36,7 +34,14 @@ impl ContainerService for ContainerGrpc {
         &self,
         _request: Request<ListContainersRequest>,
     ) -> Result<Response<ListContainersResponse>, Status> {
-        let records = self.store.list().await;
+        let records = self
+            .store
+            .list(&ListFilter {
+                limit: 100,
+                ..Default::default()
+            })
+            .await
+            .map_err(map_internal)?;
         let containers = records.into_iter().map(Container::from).collect();
         Ok(Response::new(ListContainersResponse { containers }))
     }
@@ -52,7 +57,8 @@ impl ContainerService for ContainerGrpc {
         let record = self
             .store
             .create(&payload.name, no_empty(payload.version))
-            .await;
+            .await
+            .map_err(map_internal)?;
         Ok(Response::new(CreateContainerResponse {
             container: Some(record.into()),
         }))
@@ -63,7 +69,7 @@ impl ContainerService for ContainerGrpc {
         request: Request<GetContainerRequest>,
     ) -> Result<Response<GetContainerResponse>, Status> {
         let id = request.into_inner().id;
-        match self.store.get(&id).await {
+        match self.store.get(&id).await.map_err(map_internal)? {
             Some(record) => Ok(Response::new(GetContainerResponse {
                 container: Some(record.into()),
             })),
@@ -76,10 +82,10 @@ impl ContainerService for ContainerGrpc {
         request: Request<DeleteContainerRequest>,
     ) -> Result<Response<DeleteContainerResponse>, Status> {
         let id = request.into_inner().id;
-        self.store
-            .delete(&id)
-            .await
-            .ok_or_else(|| Status::not_found("container not found"))?;
+        let deleted = self.store.delete(&id).await.map_err(map_internal)?;
+        if !deleted {
+            return Err(Status::not_found("container not found"));
+        }
         Ok(Response::new(DeleteContainerResponse { id }))
     }
 }
@@ -101,4 +107,8 @@ fn no_empty(input: String) -> Option<String> {
     } else {
         Some(input)
     }
+}
+
+fn map_internal(err: anyhow::Error) -> Status {
+    Status::internal(err.to_string())
 }

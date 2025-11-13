@@ -1,34 +1,37 @@
 # Estrategia de Pruebas
 
-## 1. Pirámide de Tests
-- **Unitarias (Rust/TypeScript)**: validan hooks, parsers de manifiestos, servicios Axum, componentes React.
-- **Integración**: escenarios que levantan el agent con un contenedor dummy y verifican la redirección de rutas/registro.
-- **End-to-End**: usan la CLI o el panel para crear, instalar y ejecutar aplicaciones reales (Notepad++, 7zip, navegadores).
+## 1. Pirámide de tests
+- **Unitarias (Rust/TypeScript)**: validan hooks del agent, parsers de manifiestos, servicios Axum y componentes React.
+- **Integración**: escenarios que lanzan el agent con contenedores dummy y verifican la redirección de rutas/registro, además de stores SQLite.
+- **End-to-End**: CLI o panel web creando/instalando aplicaciones reales (Notepad++, 7zip, navegadores).
 
-## 2. Suites Iniciales
-1. **Runtime Hook Tests**  
-   - Ejecutar app de ejemplo y confirmar que escrituras a `%APPDATA%` terminan en `user/AppData`.  
-   - Medir performance del VFS bajo carga.
-2. **Installer Capture Tests**  
-   - Reproducir instalación MSI/EXE en sandbox y comparar archivos esperados vs capturados.  
-   - Validar que se generen manifest y launcher correctos.
+## 2. Suites iniciales
+1. **Runtime Hooks**  
+   - Verificar que las rutas `%APPDATA%`, `%LOCALAPPDATA%` y `%TEMP%` apuntan al layout del contenedor.  
+   - Medir overhead del montaje virtual.
+2. **Installer Capture**  
+   - Ejecutar instaladores MSI/EXE dentro del sandbox y comparar archivos esperados vs capturados.  
+   - Validar manifiestos y launchers generados.
 3. **API/Backend**  
-   - Contratos OpenAPI/gRPC con pruebas contractuales.  
-   - Simulaciones de concurrencia en creación/ejecución de contenedores.
-   - Tests para los RPC (`ListContainers`, `CreateContainer`, etc.) usando `tonic` y datos mock.
+   - Contratos REST/gRPC con pruebas contractuales sobre SQLite (ver `cargo test -p backend`).  
+   - Simular concurrencia en creación/ejecución de contenedores y validar filtros/paginación.  
+   - Tests para los RPC (`ListContainers`, `CreateContainer`, etc.) usando `tonic`.
 4. **Frontend e2e**  
-   - Playwright/Cypress para flujos de UI (crear contenedor, lanzar app, exportar).
+   - Playwright/Cypress para flujos clave (crear contenedor, lanzar app, exportar) consumiendo la API real.
+5. **CLI**  
+   - Tests contra servidores mock (ver `cargo test -p ctnr-cli`) para garantizar wiring y manejo de errores.
 
-## 3. Automatización de Tests
-- GitHub Actions con jobs separados (agent, backend, frontend).  
-- Uso de ambientes efímeros Windows Server para pruebas e2e reales.  
-- Publicar reportes y artefactos (.ctnr de ejemplo) por pipeline.
+## 3. Automatización
+- GitHub Actions con jobs separados (agent, backend, frontend, CLI).  
+- Ambientes efímeros Windows Server para pruebas end-to-end reales.  
+- Publicar reportes y artefactos `.ctnr` desde los pipelines.
 
-## 4. Cobertura y Métricas
-- Objetivo inicial: 70% unitarias en agent/backend, 60% en frontend.  
-- Benchmarks periódicos para comparar overhead del runtime vs ejecución nativa.
+## 4. Cobertura y métricas
+- Objetivo inicial: 70 % en agent/backend, 60 % en frontend.  
+- Benchmarks periódicos para comparar overhead del runtime frente a ejecución nativa.
 
-## 5. Próximos Pasos
-1. Configurar toolchain de pruebas (cargo-nextest, vitest, Playwright).  
-2. Crear contenedor de ejemplo para demostración automática.  
-3. Integrar pruebas básicas en CI tan pronto como exista código ejecutable.
+## 5. Próximos pasos
+1. Integrar cargo-nextest/vitest/Playwright en CI.  
+2. Generar contenedores de ejemplo reutilizables en las suites automatizadas.  
+3. Añadir pruebas e2e completas para flujos de publicación/exportación antes de GA.
+

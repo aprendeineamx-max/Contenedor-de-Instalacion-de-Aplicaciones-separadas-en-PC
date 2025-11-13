@@ -1,0 +1,108 @@
+use crate::store::{ContainerRecord, ListFilter, Store};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    routing::{delete, get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
+use tower_http::cors::{Any, CorsLayer};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub version: String,
+    pub store: Store,
+}
+
+impl AppState {
+    pub fn new(version: String, store: Store) -> Self {
+        Self { version, store }
+    }
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub struct ListQuery {
+    pub status: Option<String>,
+    pub search: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+impl ListQuery {
+    fn into_filter(self) -> ListFilter {
+        ListFilter {
+            status: self.status.filter(|s| !s.is_empty()),
+            search: self.search.filter(|s| !s.is_empty()),
+            limit: self.limit.unwrap_or(25).clamp(1, 100),
+            offset: self.offset.unwrap_or(0).max(0),
+        }
+    }
+}
+
+pub fn build_router(state: AppState) -> Router {
+    Router::new()
+        .route("/healthz", get(health))
+        .route(
+            "/api/containers",
+            post(create_container).get(list_containers),
+        )
+        .route("/api/containers/:id", delete(delete_container))
+        .with_state(state)
+        .layer(CorsLayer::new().allow_origin(Any))
+}
+
+async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
+    Json(HealthResponse {
+        status: "ok".into(),
+        version: state.version,
+    })
+}
+
+async fn list_containers(
+    State(state): State<AppState>,
+    Query(query): Query<ListQuery>,
+) -> Result<Json<Vec<ContainerRecord>>, StatusCode> {
+    let filter = query.into_filter();
+    let items = state
+        .store
+        .list(&filter)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(items))
+}
+
+async fn create_container(
+    State(state): State<AppState>,
+    Json(payload): Json<HttpCreateContainerRequest>,
+) -> Result<Json<ContainerRecord>, StatusCode> {
+    if payload.name.trim().is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let record = state
+        .store
+        .create(payload.name.trim(), payload.version.clone())
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(record))
+}
+
+async fn delete_container(Path(id): Path<String>, State(state): State<AppState>) -> StatusCode {
+    match state.store.delete(&id).await {
+        Ok(true) => StatusCode::NO_CONTENT,
+        Ok(false) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+#[derive(Serialize)]
+struct HealthResponse {
+    status: String,
+    version: String,
+}
+
+#[derive(Deserialize)]
+struct HttpCreateContainerRequest {
+    name: String,
+    version: Option<String>,
+}
