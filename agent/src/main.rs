@@ -1,3 +1,4 @@
+mod hooks;
 mod registry;
 mod runtime;
 
@@ -31,17 +32,19 @@ async fn main() -> Result<()> {
             );
 
             let plan = hook_engine.prepare(container).await?;
+            hook_engine.activate(&plan)?;
             info!(
                 container_id = container.manifest.id.as_str(),
                 mounts = ?plan.mounts,
-                "Hook plan listo"
+                redirects = ?plan.redirects,
+                "Hooks aplicados correctamente"
             );
         }
     }
 
     wait_for_shutdown().await?;
 
-    info!("Agent apagándose de forma segura.");
+    info!("Agent apagandose de forma segura.");
     Ok(())
 }
 
@@ -55,6 +58,6 @@ fn init_tracing() {
 
 async fn wait_for_shutdown() -> Result<()> {
     signal::ctrl_c().await?;
-    warn!("Se recibió Ctrl+C, iniciando limpieza.");
+    warn!("Se recibio Ctrl+C, iniciando limpieza.");
     Ok(())
 }

@@ -1,4 +1,7 @@
-use crate::registry::{ContainerManifest, RegisteredContainer};
+use crate::{
+    hooks::NativeHookPipeline,
+    registry::{ContainerManifest, RegisteredContainer},
+};
 use anyhow::Result;
 use serde::Serialize;
 use std::{collections::HashMap, path::PathBuf};
@@ -15,13 +18,25 @@ pub struct MountPlan {
 pub struct HookPlan {
     pub env: HashMap<String, String>,
     pub mounts: Vec<MountPlan>,
+    pub redirects: Vec<PathRedirect>,
 }
 
-pub struct HookEngine;
+#[derive(Debug, Serialize, Clone)]
+pub struct PathRedirect {
+    pub variable: String,
+    pub original: PathBuf,
+    pub redirected: PathBuf,
+}
+
+pub struct HookEngine {
+    hooks: NativeHookPipeline,
+}
 
 impl HookEngine {
     pub fn new() -> Self {
-        Self
+        Self {
+            hooks: NativeHookPipeline::new(),
+        }
     }
 
     pub async fn prepare(&self, container: &RegisteredContainer) -> Result<HookPlan> {
@@ -68,6 +83,8 @@ impl HookEngine {
             },
         ];
 
+        let redirects = build_redirects(&layout);
+
         info!(
             container_id = container.manifest.id.as_str(),
             plan = ?mounts,
@@ -75,7 +92,15 @@ impl HookEngine {
             "Plan de hooks preparado"
         );
 
-        Ok(HookPlan { env, mounts })
+        Ok(HookPlan {
+            env,
+            mounts,
+            redirects,
+        })
+    }
+
+    pub fn activate(&self, plan: &HookPlan) -> Result<()> {
+        self.hooks.apply(plan)
     }
 }
 
@@ -126,4 +151,26 @@ fn resolve_path(root: &PathBuf, value: Option<&PathBuf>, default: &str) -> PathB
         Some(val) => root.join(val),
         None => root.join(default),
     }
+}
+
+fn build_redirects(layout: &PathLayout) -> Vec<PathRedirect> {
+    let mut redirects = Vec::new();
+    let mappings = [
+        ("APPDATA", layout.appdata.clone()),
+        ("LOCALAPPDATA", layout.local_appdata.clone()),
+        ("PROGRAMFILES", layout.program_files.clone()),
+        ("TEMP", layout.temp.clone()),
+        ("TMP", layout.temp.clone()),
+    ];
+
+    for (var, redirected) in mappings {
+        if let Some(original) = std::env::var_os(var) {
+            redirects.push(PathRedirect {
+                variable: var.into(),
+                original: PathBuf::from(original),
+                redirected: redirected.clone(),
+            });
+        }
+    }
+    redirects
 }

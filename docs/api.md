@@ -6,8 +6,9 @@ Base URL: `http://localhost:8080`
 | Método | Ruta | Descripción |
 | ------ | ---- | ----------- |
 | `GET` | `/healthz` | Estado del backend y versión en ejecución. |
-| `GET` | `/api/containers` | Lista contenedores registrados. Soporta filtros. |
-| `POST` | `/api/containers` | Crea un contenedor placeholder y devuelve su resumen. |
+| `GET` | `/api/containers` | Lista contenedores registrados (filtros/paginación). |
+| `POST` | `/api/containers` | Crea un contenedor y devuelve su resumen. |
+| `GET` | `/api/containers/:id` | Obtiene el detalle del contenedor. |
 | `DELETE` | `/api/containers/:id` | Elimina el contenedor indicado. |
 
 ### Ejemplo `POST /api/containers`
@@ -33,8 +34,8 @@ Respuesta:
 
 ### Parámetros para `GET /api/containers`
 - `status`: filtra por estado (`draft`, `running`, etc.).
-- `search`: busca por coincidencias parciales en `id` o `name`.
-- `limit`: número máximo de registros (1-100, default 25).
+- `search`: coincidencias parciales en `id` o `name`.
+- `limit`: registros por página (1-100, default 25).
 - `offset`: desplazamiento para paginación (default 0).
 
 ## gRPC
@@ -46,16 +47,15 @@ Servicio principal: `containers.v1.ContainerService`
 | RPC | Request | Response | Descripción |
 | --- | ------- | -------- | ----------- |
 | `ListContainers` | `ListContainersRequest` | `ListContainersResponse` | Lista contenedores cargados. |
-| `CreateContainer` | `CreateContainerRequest` | `CreateContainerResponse` | Crea contenedor en memoria. |
-| `GetContainer` | `GetContainerRequest` | `GetContainerResponse` | Obtiene detalle. |
-| `DeleteContainer` | `DeleteContainerRequest` | `DeleteContainerResponse` | Elimina contenedor. |
+| `CreateContainer` | `CreateContainerRequest` | `CreateContainerResponse` | Crea contenedor y devuelve resumen. |
+| `GetContainer` | `GetContainerRequest` | `GetContainerResponse` | Obtiene detalle individual. |
+| `DeleteContainer` | `DeleteContainerRequest` | `DeleteContainerResponse` | Elimina contenedor existente. |
 
 ### Ejemplo `containers.v1.ListContainers`
 ```proto
 rpc ListContainers (ListContainersRequest) returns (ListContainersResponse);
 ```
 ```json
-// Response data
 {
   "containers": [
     {
@@ -68,4 +68,5 @@ rpc ListContainers (ListContainersRequest) returns (ListContainersResponse);
 }
 ```
 
-La CLI y el panel web consumirán los endpoints REST durante las primeras iteraciones, mientras que el agent/backplane utilizarán gRPC para operaciones internas y agentes remotos.
+La CLI y el panel web usan REST para administración interactiva, mientras que los agentes y servicios remotos se conectan al backend mediante gRPC.
+

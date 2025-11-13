@@ -1,22 +1,31 @@
-use crate::store::{ContainerRecord, ListFilter, Store};
+use crate::{
+    queue::TaskQueue,
+    store::{ContainerRecord, ListFilter, Store},
+};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    routing::{delete, get, post},
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
+use tracing::{error, warn};
 
 #[derive(Clone)]
 pub struct AppState {
     pub version: String,
     pub store: Store,
+    pub queue: Option<TaskQueue>,
 }
 
 impl AppState {
-    pub fn new(version: String, store: Store) -> Self {
-        Self { version, store }
+    pub fn new(version: String, store: Store, queue: Option<TaskQueue>) -> Self {
+        Self {
+            version,
+            store,
+            queue,
+        }
     }
 }
 
@@ -46,7 +55,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/containers",
             post(create_container).get(list_containers),
         )
-        .route("/api/containers/:id", delete(delete_container))
+        .route(
+            "/api/containers/:id",
+            get(get_container).delete(delete_container),
+        )
         .with_state(state)
         .layer(CorsLayer::new().allow_origin(Any))
 }
@@ -84,6 +96,13 @@ async fn create_container(
         .create(payload.name.trim(), payload.version.clone())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    if let Some(queue) = &state.queue {
+        if let Err(err) = queue.enqueue("containers:create", &record.id).await {
+            warn!(error = ?err, "No se pudo encolar tarea de creación");
+        }
+    }
+
     Ok(Json(record))
 }
 
@@ -92,6 +111,20 @@ async fn delete_container(Path(id): Path<String>, State(state): State<AppState>)
         Ok(true) => StatusCode::NO_CONTENT,
         Ok(false) => StatusCode::NOT_FOUND,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn get_container(
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<ContainerRecord>, StatusCode> {
+    match state.store.get(&id).await {
+        Ok(Some(record)) => Ok(Json(record)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(err) => {
+            error!(container_id = id, ?err, "Error obteniendo contenedor");
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
 

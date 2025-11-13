@@ -1,37 +1,37 @@
 # Estrategia de Pruebas
 
-## 1. Pirámide de tests
-- **Unitarias (Rust/TypeScript)**: validan hooks del agent, parsers de manifiestos, servicios Axum y componentes React.
-- **Integración**: escenarios que lanzan el agent con contenedores dummy y verifican la redirección de rutas/registro, además de stores SQLite.
-- **End-to-End**: CLI o panel web creando/instalando aplicaciones reales (Notepad++, 7zip, navegadores).
+## 1. Pirámide
+- **Unitarias (Rust/TypeScript)**: hooks del agent, parsers de manifiestos, servicios Axum y componentes React.
+- **Integración**: agent con contenedores dummy, redirección de filesystem/registro, stores SQLx/Redis.
+- **End-to-End**: CLI y panel ejecutando flujos reales (instalación, snapshot, exportación).
 
-## 2. Suites iniciales
+## 2. Suites actuales
 1. **Runtime Hooks**  
-   - Verificar que las rutas `%APPDATA%`, `%LOCALAPPDATA%` y `%TEMP%` apuntan al layout del contenedor.  
-   - Medir overhead del montaje virtual.
+   - Verificar que `%APPDATA%`, `%LOCALAPPDATA%` y `%TEMP%` apuntan al layout del contenedor.  
+   - Medir overhead de montajes WinFSP/Dokany.
 2. **Installer Capture**  
-   - Ejecutar instaladores MSI/EXE dentro del sandbox y comparar archivos esperados vs capturados.  
-   - Validar manifiestos y launchers generados.
+   - Ejecutar instaladores MSI/EXE en sandbox y comparar outputs con el layout esperado.  
+   - Validar manifiestos y launchers autogenerados.
 3. **API/Backend**  
-   - Contratos REST/gRPC con pruebas contractuales sobre SQLite (ver `cargo test -p backend`).  
-   - Simular concurrencia en creación/ejecución de contenedores y validar filtros/paginación.  
-   - Tests para los RPC (`ListContainers`, `CreateContainer`, etc.) usando `tonic`.
+   - Contratos REST/gRPC (`cargo test -p backend`) con migraciones SQLx y soporte SQLite/Postgres.  
+   - Escenarios de paginación, filtros y eliminación.  
+   - RPCs `List/Create/Get/Delete` cubiertos con `tonic`.
 4. **Frontend e2e**  
-   - Playwright/Cypress para flujos clave (crear contenedor, lanzar app, exportar) consumiendo la API real.
+   - Playwright (`npm run test:e2e`) con `webServer` que arranca Next.js y valida flujo “Dashboard lista vacía / contenedores existentes”.
 5. **CLI**  
-   - Tests contra servidores mock (ver `cargo test -p ctnr-cli`) para garantizar wiring y manejo de errores.
+   - Tests contra backend mock Axum (`cargo test -p ctnr-cli`) para garantizar wiring y manejo de errores.
 
 ## 3. Automatización
-- GitHub Actions con jobs separados (agent, backend, frontend, CLI).  
-- Ambientes efímeros Windows Server para pruebas end-to-end reales.  
-- Publicar reportes y artefactos `.ctnr` desde los pipelines.
+- GitHub Actions: jobs independientes para agent, backend, frontend y CLI.
+- Ambientes Windows Server efímeros para validar hooks nativos y WinFSP.
+- Publicación de reportes y artefactos `.ctnr` en cada pipeline.
 
 ## 4. Cobertura y métricas
-- Objetivo inicial: 70 % en agent/backend, 60 % en frontend.  
-- Benchmarks periódicos para comparar overhead del runtime frente a ejecución nativa.
+- Objetivo: 70 % backend/agent, 60 % frontend.
+- Benchmarks periódicos para comparar overhead del runtime vs ejecución nativa.
 
 ## 5. Próximos pasos
-1. Integrar cargo-nextest/vitest/Playwright en CI.  
-2. Generar contenedores de ejemplo reutilizables en las suites automatizadas.  
-3. Añadir pruebas e2e completas para flujos de publicación/exportación antes de GA.
+1. Integrar `cargo-nextest`, `vitest` y Playwright en CI.
+2. Crear contenedores de referencia para pruebas automatizadas.
+3. Añadir suites e2e completas (crear contenedor, snapshot, exportación) antes de GA.
 

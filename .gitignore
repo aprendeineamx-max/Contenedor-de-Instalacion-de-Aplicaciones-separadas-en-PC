@@ -7,12 +7,14 @@ node_modules/
 .next/
 frontend/.next/
 frontend/node_modules/
+frontend/test-results/
 
 # Logs & env
 *.log
 .env
 .env.local
 data/
+.tmp/
 
 # OS metadata
 Thumbs.db

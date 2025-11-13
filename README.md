@@ -1,37 +1,36 @@
 # Sistema de Contenedores Win32
 
-Este repositorio alberga el desarrollo del sistema que permite instalar y ejecutar aplicaciones Win32 dentro de contenedores portables, replicando instalaciones completas sin afectar el host.
+Plataforma para instalar y ejecutar aplicaciones Win32 dentro de contenedores portables, conservando binarios, datos de usuario y configuración aislada.
 
-## Módulos Principales
-- `agent/`: servicio residente en Rust que orquesta contenedores, coordina hooks y expone APIs locales.
-- `backend/`: plano de control (Rust + Axum/Tonic) con lógica de negocio, RBAC y colas de tareas.
-- `frontend/`: panel web Next.js 14 (TypeScript) para administrar contenedores desde el navegador.
-- `cli/`: herramienta de línea de comandos (Rust) para automatizar la plataforma desde scripts/CI.
-- `docs/`: especificaciones, diagramas y material de diseño.
-- `infrastructure/`: definiciones IaC, manifests de despliegue y scripts de instalación.
+## Módulos principales
+- `agent/`: servicio local que orquesta contenedores, aplica hooks (Detours/WinFSP) y prepara el runtime.
+- `backend/`: plano de control (Rust + Axum/Tonic + SQLx) con APIs REST/gRPC y soporte para SQLite/PostgreSQL + Redis.
+- `frontend/`: panel Next.js 14 responsivo con soporte para pruebas e2e (Playwright).
+- `cli/`: herramienta Rust para automatizar operaciones (`ctnr create`, `ctnr list`, etc.).
+- `docs/`: especificaciones funcionales, APIs y guías de runtime.
+- `infrastructure/`: scripts e IaC (en preparación).
 
-## Flujo de Trabajo Inicial
-1. Diseñar los contratos entre módulos (gRPC/REST) y el esquema de base de datos (SQLite por defecto).
-2. Implementar el runtime/agent mínimo que redirige rutas críticas de usuario.
-3. Levantar backend + frontend con datos simulados para iterar en la experiencia de usuario.
-4. Desarrollar el pipeline de captura de instaladores y exportación `.ctnr`.
-
-## Cómo ejecutar los scaffolds
-### Prerrequisitos
-- Rust 1.79+ y `cargo`.
+## Requisitos
+- Rust 1.79+ (`rustup default stable` recomendado).
 - Node.js 20+ y `npm`.
+- (Opcional) Redis 7+ para colas asincrónicas (`REDIS_URL`).
+- (Opcional) PostgreSQL 14+ (`DATABASE_URL=postgres://...`). Por defecto se usa `sqlite://data/containers.db`.
 
-Para instalar rápidamente en Windows:
-- `winget install Rustlang.Rustup` y luego `rustup default stable`.
-- `winget install OpenJS.NodeJS.LTS` (o instala la versión requerida desde nodejs.org).
+## Variables de entorno clave
+| Variable | Descripción | Valor por defecto |
+| -------- | ----------- | ----------------- |
+| `DATABASE_URL` | URL SQLx (`sqlite://…`, `postgres://…`) | `sqlite://data/containers.db` |
+| `REDIS_URL` | Conexión para tareas asincrónicas | _vacío_ |
+| `CONTAINERS_HTTP_ADDR` | Host/puerto HTTP | `0.0.0.0:8080` |
+| `CONTAINERS_GRPC_ADDR` | Host/puerto gRPC | `0.0.0.0:50051` |
 
-### Pasos
+## Ejecución rápida
 ```bash
-# Backend (API con SQLite + gRPC)
+# Backend (API REST/gRPC + SQLx + migraciones automáticas)
 cargo run -p backend
 
-# Agent (placeholder runtime)
-cargo run -p agent
+# Agent (prepara planes de montaje y aplica hooks nativos con --features native-hooks)
+cargo run -p agent --features native-hooks   # requiere Windows + Detours + WinFSP
 
 # CLI
 cargo run -p ctnr-cli -- list
@@ -40,22 +39,28 @@ cargo run -p ctnr-cli -- list
 cd frontend
 npm install
 npm run dev
+
+# Pruebas e2e del panel (lanza Next.js automáticamente)
+npm run test:e2e
 ```
 
-> El backend expone `/healthz` y `/api/containers` sobre SQLite. La CLI ya consume esos endpoints para validar el wiring inicial.
-
 ## APIs disponibles
-- REST (`docs/api.md`): `GET/POST/DELETE /api/containers` + `/healthz` en `http://localhost:8080`.
-- gRPC (`proto/containers.proto`): Servicio `containers.v1.ContainerService` en `0.0.0.0:50051`, pensado para comunicación agent <-> backend.
+- REST (`docs/api.md`): `GET/POST/DELETE /api/containers`, `GET /api/containers/:id`, `/healthz`.
+- gRPC (`proto/containers.proto`): servicio `containers.v1.ContainerService` (puerto `50051`) usado por agentes remotos.
+
+## Hooks nativos
+- El plan de hooks (`HookPlan`) contiene variables de entorno, montajes y redirecciones de rutas.
+- En Windows, habilita `cargo run -p agent --features native-hooks` para activar el hook `CreateFileW` mediante Detours (ver `agent/src/hooks`).
+- WinFSP/Dokany pueden montarse usando los `MountPlan` generados; consulta `docs/hooks.md` para flujo completo.
 
 ## Pruebas
-- Backend (REST + gRPC + SQLite): `cargo test -p backend`
-- CLI (contra servidor mock en memoria): `cargo test -p ctnr-cli`
+- Backend (REST + gRPC + migraciones SQLx): `cargo test -p backend`.
+- CLI (mock server Axum): `cargo test -p ctnr-cli`.
+- Frontend e2e (Playwright, arranca Next.js automáticamente): `npm run test:e2e`.
 
-## Estado Actual
-- ✅ Especificación técnica inicial en `docs/spec.md`.
-- 🚧 Estructura base de carpetas y documentación.
-- ⏳ Próximos pasos: definir contratos API, preparar plantillas de proyectos y configurar toolchains (Rust, Node.js, etc.).
+## Estado
+- ✅ Especificación técnica (`docs/spec.md`), roadmap (`docs/roadmap.md`) y estrategia de pruebas (`TESTING.md`).
+- ✅ Persistencia multi motor (SQLite/Postgres) y Redis opcional para colas.
+- ✅ HookEngine genera planes de montaje/redirección y activa Detours cuando está disponible.
+- 🚧 Siguiente etapa: drivers WinFSP/Dokany, UI avanzada, captura automática de instaladores y despliegues empaquetados.
 
-## Contacto y Soporte
-Las discusiones iniciales y issues pueden abrirse directamente en este repositorio. Posteriormente se migrarán a un portal público con documentación completa.

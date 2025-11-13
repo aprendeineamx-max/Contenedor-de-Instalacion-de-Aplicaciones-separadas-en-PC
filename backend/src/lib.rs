@@ -1,5 +1,7 @@
 pub mod app;
+pub mod config;
 pub mod grpc;
+pub mod queue;
 pub mod store;
 
 pub mod proto {
@@ -7,7 +9,9 @@ pub mod proto {
 }
 
 use app::{build_router, AppState};
+use config::Settings;
 use grpc::ContainerGrpc;
+use queue::TaskQueue;
 use std::net::SocketAddr;
 use store::Store;
 use tokio::net::TcpListener;
@@ -16,17 +20,18 @@ use tracing::{info, Level};
 pub async fn run() -> anyhow::Result<()> {
     init_tracing();
 
-    let db_path =
-        std::env::var("CONTAINERS_DB").unwrap_or_else(|_| "data/containers.db".to_string());
-    let store = Store::new(db_path).await?;
-    let state = AppState::new(env!("CARGO_PKG_VERSION").to_string(), store.clone());
+    let settings = Settings::load();
+    let store = Store::open(&settings.database_url).await?;
+    let queue = TaskQueue::connect(settings.redis_url.as_deref()).await?;
 
-    let http_addr: SocketAddr = std::env::var("CONTAINERS_HTTP_ADDR")
-        .unwrap_or_else(|_| "0.0.0.0:8080".to_string())
-        .parse()?;
-    let grpc_addr: SocketAddr = std::env::var("CONTAINERS_GRPC_ADDR")
-        .unwrap_or_else(|_| "0.0.0.0:50051".to_string())
-        .parse()?;
+    let state = AppState::new(
+        env!("CARGO_PKG_VERSION").to_string(),
+        store.clone(),
+        queue.clone(),
+    );
+
+    let http_addr: SocketAddr = settings.http_addr.parse()?;
+    let grpc_addr: SocketAddr = settings.grpc_addr.parse()?;
 
     let http_task = tokio::spawn(async move {
         let listener = TcpListener::bind(http_addr).await?;

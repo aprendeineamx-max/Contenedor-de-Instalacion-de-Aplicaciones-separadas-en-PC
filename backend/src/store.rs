@@ -1,19 +1,19 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::{
-    sqlite::{SqliteConnectOptions, SqliteJournalMode},
-    FromRow, QueryBuilder, SqlitePool,
+    any::{install_default_drivers, AnyPoolOptions, AnyRow},
+    AnyPool, QueryBuilder, Row,
 };
-use std::{path::Path, str::FromStr};
+use std::path::PathBuf;
 use tokio::fs;
 use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Store {
-    pool: SqlitePool,
+    pool: AnyPool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ContainerRecord {
     pub id: String,
     pub name: String,
@@ -29,38 +29,63 @@ pub struct ListFilter {
     pub offset: i64,
 }
 
+impl<'r> sqlx::FromRow<'r, AnyRow> for ContainerRecord {
+    fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
+        let id: String = row.try_get("id")?;
+        let name: String = row.try_get("name")?;
+        let status: String = row.try_get("status")?;
+        let version: String = row.try_get("version")?;
+        let version = if version.is_empty() {
+            None
+        } else {
+            Some(version)
+        };
+
+        Ok(Self {
+            id,
+            name,
+            version,
+            status,
+        })
+    }
+}
+
 impl Store {
-    pub async fn new(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).await?;
+    pub async fn open(database_url: &str) -> Result<Self> {
+        install_default_drivers();
+        if let Some(path) = Self::sqlite_path(database_url) {
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).await?;
+            }
         }
 
-        let options = SqliteConnectOptions::from_str(path.to_string_lossy().as_ref())?
-            .create_if_missing(true)
-            .journal_mode(SqliteJournalMode::Wal);
+        let max_conns = if database_url.starts_with("sqlite::memory") {
+            1
+        } else {
+            10
+        };
 
-        let pool = SqlitePool::connect_with(options).await?;
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS containers (
-                id TEXT PRIMARY KEY,
-                name TEXT NOT NULL,
-                version TEXT,
-                status TEXT NOT NULL,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            "#,
-        )
-        .execute(&pool)
-        .await?;
-
+        let pool = AnyPoolOptions::new()
+            .max_connections(max_conns)
+            .connect(database_url)
+            .await?;
+        sqlx::migrate!("./migrations").run(&pool).await?;
         Ok(Self { pool })
     }
 
+    fn sqlite_path(url: &str) -> Option<PathBuf> {
+        if url.starts_with("sqlite://") {
+            let path = url.trim_start_matches("sqlite://");
+            Some(PathBuf::from(path))
+        } else {
+            None
+        }
+    }
+
     pub async fn list(&self, filter: &ListFilter) -> Result<Vec<ContainerRecord>> {
-        let mut builder =
-            QueryBuilder::new("SELECT id, name, version, status FROM containers WHERE 1=1");
+        let mut builder = QueryBuilder::new(
+            "SELECT id, name, COALESCE(version, '') AS version, status FROM containers WHERE 1=1",
+        );
 
         if let Some(status) = &filter.status {
             builder.push(" AND status = ").push_bind(status);
@@ -95,22 +120,20 @@ impl Store {
             status: "draft".into(),
         };
 
-        sqlx::query(
-            r#"INSERT INTO containers (id, name, version, status) VALUES (?1, ?2, ?3, ?4)"#,
-        )
-        .bind(&record.id)
-        .bind(&record.name)
-        .bind(&record.version)
-        .bind(&record.status)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO containers (id, name, version, status) VALUES (?, ?, ?, ?)")
+            .bind(&record.id)
+            .bind(&record.name)
+            .bind(&record.version)
+            .bind(&record.status)
+            .execute(&self.pool)
+            .await?;
 
         Ok(record)
     }
 
     pub async fn get(&self, id: &str) -> Result<Option<ContainerRecord>> {
         let row = sqlx::query_as::<_, ContainerRecord>(
-            "SELECT id, name, version, status FROM containers WHERE id = ?1",
+            "SELECT id, name, COALESCE(version, '') AS version, status FROM containers WHERE id = ?",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -119,7 +142,7 @@ impl Store {
     }
 
     pub async fn delete(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM containers WHERE id = ?1")
+        let result = sqlx::query("DELETE FROM containers WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
             .await?;
