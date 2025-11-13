@@ -16,6 +16,30 @@ Este repositorio alberga el desarrollo del sistema que permite instalar y ejecut
 3. Levantar backend + frontend con datos simulados para iterar en la experiencia de usuario.
 4. Desarrollar el pipeline de captura de instaladores y exportación `.ctnr`.
 
+## Cómo ejecutar los scaffolds
+### Prerrequisitos
+- Rust 1.79+ y `cargo`.
+- Node.js 20+ y `npm`.
+
+### Pasos
+```bash
+# Backend (API mock)
+cargo run -p backend
+
+# Agent (placeholder runtime)
+cargo run -p agent
+
+# CLI
+cargo run -p ctnr-cli -- list
+
+# Frontend
+cd frontend
+npm install
+npm run dev
+```
+
+> El backend expone `/healthz` y `/api/containers` (mock). La CLI ya consume esos endpoints para validar el wiring inicial.
+
 ## Estado Actual
 - ✅ Especificación técnica inicial en `docs/spec.md`.
 - 🚧 Estructura base de carpetas y documentación.
@@ -23,4 +47,3 @@ Este repositorio alberga el desarrollo del sistema que permite instalar y ejecut
 
 ## Contacto y Soporte
 Las discusiones iniciales y issues pueden abrirse directamente en este repositorio. Posteriormente se migrarán a un portal público con documentación completa.
-

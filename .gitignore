@@ -1,0 +1,18 @@
+# Rust
+target/
+Cargo.lock
+
+# Node/Next.js
+node_modules/
+.next/
+frontend/.next/
+frontend/node_modules/
+
+# Logs & env
+*.log
+.env
+.env.local
+
+# OS metadata
+Thumbs.db
+Desktop.ini

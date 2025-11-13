@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "agent",
+    "backend",
+    "cli",
+]
+resolver = "2"
