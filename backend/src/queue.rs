@@ -46,6 +46,21 @@ impl TaskQueue {
         Ok(())
     }
 
+    pub async fn dequeue(&self, channel: &str, wait: Duration) -> Result<Option<String>> {
+        let mut conn = self.connection().await?;
+        let res: Option<(String, String)> = timeout(
+            wait,
+            redis::cmd("BRPOP")
+                .arg(channel)
+                .arg((wait.as_secs() + 1) as usize)
+                .query_async(&mut conn),
+        )
+        .await
+        .unwrap_or(Ok(None))
+        .context("No se pudo leer de la cola Redis")?;
+        Ok(res.map(|(_, payload)| payload))
+    }
+
     async fn connection(&self) -> Result<MultiplexedConnection> {
         let conn = self
             .client

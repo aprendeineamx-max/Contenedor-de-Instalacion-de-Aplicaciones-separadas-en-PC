@@ -25,6 +25,8 @@ pub struct ContainerManifest {
     pub name: String,
     pub version: Option<String>,
     #[serde(default)]
+    pub entrypoint: Option<String>,
+    #[serde(default)]
     pub runtime: RuntimeConfig,
     #[serde(default)]
     pub paths: PathConfig,

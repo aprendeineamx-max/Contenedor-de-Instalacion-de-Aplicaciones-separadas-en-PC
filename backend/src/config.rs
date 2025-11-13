@@ -13,7 +13,9 @@ impl Settings {
         Self {
             database_url: env::var("DATABASE_URL")
                 .or_else(|_| env::var("CONTAINERS_DB_URL"))
-                .unwrap_or_else(|_| "sqlite://data/containers.db".to_string()),
+                .unwrap_or_else(|_| {
+                    "postgres://containers:containers@localhost:5432/containers".to_string()
+                }),
             redis_url: env::var("REDIS_URL")
                 .or_else(|_| env::var("CONTAINERS_REDIS_URL"))
                 .ok(),

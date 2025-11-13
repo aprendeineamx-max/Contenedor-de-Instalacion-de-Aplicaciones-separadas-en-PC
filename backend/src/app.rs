@@ -1,14 +1,20 @@
 use crate::{
     queue::TaskQueue,
+    security::{self, AuthConfig},
     store::{ContainerRecord, ListFilter, Store},
 };
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
+    middleware,
+    response::sse::{Event, KeepAlive, Sse},
     routing::{get, post},
     Json, Router,
 };
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use std::{convert::Infallible, time::Duration};
+use tokio_stream::wrappers::IntervalStream;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::{error, warn};
 
@@ -49,6 +55,8 @@ impl ListQuery {
 }
 
 pub fn build_router(state: AppState) -> Router {
+    let auth = AuthConfig::from_env();
+    let rate = security::RateLimiter::new(120, Duration::from_secs(60));
     Router::new()
         .route("/healthz", get(health))
         .route(
@@ -59,8 +67,14 @@ pub fn build_router(state: AppState) -> Router {
             "/api/containers/:id",
             get(get_container).delete(delete_container),
         )
-        .with_state(state)
+        .route("/api/events/containers", get(stream_containers))
+        .layer(middleware::from_fn_with_state(rate, security::rate_limit))
+        .layer(middleware::from_fn_with_state(
+            auth,
+            security::require_api_key,
+        ))
         .layer(CorsLayer::new().allow_origin(Any))
+        .with_state(state)
 }
 
 async fn health(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -126,6 +140,28 @@ async fn get_container(
             Err(StatusCode::INTERNAL_SERVER_ERROR)
         }
     }
+}
+
+async fn stream_containers(
+    State(state): State<AppState>,
+) -> Sse<impl futures_core::Stream<Item = Result<Event, Infallible>>> {
+    let shared_state = state.clone();
+    let stream =
+        IntervalStream::new(tokio::time::interval(Duration::from_secs(5))).then(move |_| {
+            let state = shared_state.clone();
+            async move {
+                let payload = state
+                    .store
+                    .list(&ListFilter::default())
+                    .await
+                    .ok()
+                    .and_then(|items| serde_json::to_string(&items).ok())
+                    .unwrap_or_else(|| "[]".into());
+                Ok::<_, Infallible>(Event::default().data(payload))
+            }
+        });
+
+    Sse::new(stream).keep_alive(KeepAlive::new().interval(Duration::from_secs(15)))
 }
 
 #[derive(Serialize)]

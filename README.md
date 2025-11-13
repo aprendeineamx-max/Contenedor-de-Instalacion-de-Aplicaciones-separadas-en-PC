@@ -1,36 +1,45 @@
 # Sistema de Contenedores Win32
 
-Plataforma para instalar y ejecutar aplicaciones Win32 dentro de contenedores portables, conservando binarios, datos de usuario y configuración aislada.
+Plataforma para instalar y ejecutar aplicaciones Win32 dentro de contenedores portables, reutilizando binarios, datos de usuario y configuración sin tocar el host.
 
 ## Módulos principales
-- `agent/`: servicio local que orquesta contenedores, aplica hooks (Detours/WinFSP) y prepara el runtime.
-- `backend/`: plano de control (Rust + Axum/Tonic + SQLx) con APIs REST/gRPC y soporte para SQLite/PostgreSQL + Redis.
-- `frontend/`: panel Next.js 14 responsivo con soporte para pruebas e2e (Playwright).
-- `cli/`: herramienta Rust para automatizar operaciones (`ctnr create`, `ctnr list`, etc.).
-- `docs/`: especificaciones funcionales, APIs y guías de runtime.
-- `infrastructure/`: scripts e IaC (en preparación).
+- `agent/`: servicio Windows que prepara planes de montaje, aplica hooks (Detours/WinFSP/Dokany) y lanza los procesos.
+- `backend/`: plano de control (Rust + Axum/Tonic + SQLx) con APIs REST/gRPC, Postgres por defecto y colas Redis.
+- `frontend/`: panel Next.js 14 con formularios de creación, SSE en tiempo real y pruebas Playwright.
+- `cli/`: herramienta Rust para automatizar operaciones (`ctnr list/create/export`).
+- `docs/`: especificaciones de contenedores, APIs y guía de hooks (`docs/spec.md`, `docs/api.md`, `docs/hooks.md`).
+- `installer/`: scripts y documentación inicial para capturar instaladores dentro del contenedor.
 
 ## Requisitos
-- Rust 1.79+ (`rustup default stable` recomendado).
+- Rust 1.79+ (`rustup default stable`).
 - Node.js 20+ y `npm`.
-- (Opcional) Redis 7+ para colas asincrónicas (`REDIS_URL`).
-- (Opcional) PostgreSQL 14+ (`DATABASE_URL=postgres://...`). Por defecto se usa `sqlite://data/containers.db`.
+- PostgreSQL 14+ (`DATABASE_URL=postgres://containers:containers@localhost:5432/containers`).
+- Redis 7+ (`REDIS_URL=redis://localhost:6379`) para las colas de instalación.
+- WinFSP 2.x o Dokany 2.x + Microsoft Detours para los hooks nativos del agent.
 
 ## Variables de entorno clave
 | Variable | Descripción | Valor por defecto |
 | -------- | ----------- | ----------------- |
-| `DATABASE_URL` | URL SQLx (`sqlite://…`, `postgres://…`) | `sqlite://data/containers.db` |
-| `REDIS_URL` | Conexión para tareas asincrónicas | _vacío_ |
-| `CONTAINERS_HTTP_ADDR` | Host/puerto HTTP | `0.0.0.0:8080` |
-| `CONTAINERS_GRPC_ADDR` | Host/puerto gRPC | `0.0.0.0:50051` |
+| `DATABASE_URL` | URL SQLx (`postgres://…` o `sqlite://…`) | `postgres://containers:containers@localhost:5432/containers` |
+| `REDIS_URL` | Cola para tareas async | _vacío_ |
+| `CONTAINERS_HTTP_ADDR` | Dirección HTTP del backend | `0.0.0.0:8080` |
+| `CONTAINERS_GRPC_ADDR` | Dirección gRPC | `0.0.0.0:50051` |
+| `CONTAINERS_API_KEY` | API Key mínima para REST | _vacío_ |
+| `NEXT_PUBLIC_API_BASE` | Endpoint usado por el panel | `http://127.0.0.1:8080` |
 
 ## Ejecución rápida
 ```bash
-# Backend (API REST/gRPC + SQLx + migraciones automáticas)
+# Base de datos + Redis (Docker)
+docker compose up -d postgres redis
+
+# Backend (REST/gRPC + migraciones automáticas)
 cargo run -p backend
 
-# Agent (prepara planes de montaje y aplica hooks nativos con --features native-hooks)
-cargo run -p agent --features native-hooks   # requiere Windows + Detours + WinFSP
+# Worker de colas
+cargo run -p backend --bin worker
+
+# Agent (hooks nativos opcionales)
+cargo run -p agent --features native-hooks
 
 # CLI
 cargo run -p ctnr-cli -- list
@@ -40,27 +49,32 @@ cd frontend
 npm install
 npm run dev
 
-# Pruebas e2e del panel (lanza Next.js automáticamente)
+# Playwright e2e (usa Next.js y backend real si está disponible)
 npm run test:e2e
 ```
 
-## APIs disponibles
-- REST (`docs/api.md`): `GET/POST/DELETE /api/containers`, `GET /api/containers/:id`, `/healthz`.
-- gRPC (`proto/containers.proto`): servicio `containers.v1.ContainerService` (puerto `50051`) usado por agentes remotos.
-
-## Hooks nativos
-- El plan de hooks (`HookPlan`) contiene variables de entorno, montajes y redirecciones de rutas.
-- En Windows, habilita `cargo run -p agent --features native-hooks` para activar el hook `CreateFileW` mediante Detours (ver `agent/src/hooks`).
-- WinFSP/Dokany pueden montarse usando los `MountPlan` generados; consulta `docs/hooks.md` para flujo completo.
+## APIs y características
+- **REST** (`docs/api.md`): `GET/POST/DELETE /api/containers`, `GET /api/containers/:id`, `/healthz`, `GET /api/events/containers` (SSE).
+- **gRPC** (`proto/containers.proto`): `containers.v1.ContainerService`.
+- **Hooks** (`docs/hooks.md`): planes de montaje (`MountPlan`), redirecciones (`PathRedirect`), hook `CreateFileW` mediante Detours y montaje WinFSP/Dokany.
+- **Colas Redis**: worker (`backend/src/bin/worker.rs`) escucha `containers:create` y procesará capturas/instalaciones.
+- **Seguridad**: API Key mínima (`X-API-Key`), rate limiting y trazas HTTP.
 
 ## Pruebas
-- Backend (REST + gRPC + migraciones SQLx): `cargo test -p backend`.
-- CLI (mock server Axum): `cargo test -p ctnr-cli`.
-- Frontend e2e (Playwright, arranca Next.js automáticamente): `npm run test:e2e`.
+- `cargo test -p backend` – REST/gRPC + migraciones SQLx + Redis stubs.
+- `cargo test -p ctnr-cli` – CLI contra servidor mock Axum.
+- `cargo test -p agent` – validaciones del runtime/manifest parsing.
+- `npm run test:e2e` – Playwright (Chromium) levantando Next.js; intenta usar el backend real y cae a mocks si no está disponible.
 
-## Estado
-- ✅ Especificación técnica (`docs/spec.md`), roadmap (`docs/roadmap.md`) y estrategia de pruebas (`TESTING.md`).
-- ✅ Persistencia multi motor (SQLite/Postgres) y Redis opcional para colas.
-- ✅ HookEngine genera planes de montaje/redirección y activa Detours cuando está disponible.
-- 🚧 Siguiente etapa: drivers WinFSP/Dokany, UI avanzada, captura automática de instaladores y despliegues empaquetados.
+## Installer Capture (primer borrador)
+- Documentado en `installer/README.md`.
+- Script `installer/scripts/capture.ps1` encapsula el instalador dentro de un sandbox supervisado.
+- El backend expone colas Redis para programar capturas y el panel permitirá subir el instalador (en progreso).
+
+## Estado actual
+- ✅ Persistencia Postgres por defecto, SQLite para tests, migraciones versionadas.
+- ✅ HookEngine genera planes, aplica Detours y controla montajes WinFSP/Dokany.
+- ✅ Panel con formularios reales, SSE y pruebas Playwright.
+- ✅ Worker Redis para futuras tareas de instalación/captura.
+- 🚧 Próximos pasos: pipeline completo de captura, UI de colas, autenticación OIDC, empaquetado MSI/installer y drivers WinFSP/Dokany firmados.
 

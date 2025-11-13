@@ -19,6 +19,9 @@ prost-types = "0.12"
 uuid = { version = "1.7", features = ["v4"] }
 sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "postgres", "any", "macros", "migrate"] }
 redis = { version = "0.25", features = ["tokio-comp"] }
+tokio-stream = "0.1"
+futures-util = "0.3"
+futures-core = "0.3"
 
 [build-dependencies]
 tonic-build = "0.11"

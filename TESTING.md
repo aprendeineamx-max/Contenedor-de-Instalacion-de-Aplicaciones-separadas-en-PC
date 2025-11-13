@@ -2,36 +2,40 @@
 
 ## 1. Pirámide
 - **Unitarias (Rust/TypeScript)**: hooks del agent, parsers de manifiestos, servicios Axum y componentes React.
-- **Integración**: agent con contenedores dummy, redirección de filesystem/registro, stores SQLx/Redis.
-- **End-to-End**: CLI y panel ejecutando flujos reales (instalación, snapshot, exportación).
+- **Integración**: agent con contenedores dummy, montajes WinFSP/Dokany, stores SQLx/Redis y workers.
+- **End-to-End**: CLI y panel ejecutando flujos reales (creación, instalación, exportación).
 
 ## 2. Suites actuales
 1. **Runtime Hooks**  
-   - Verificar que `%APPDATA%`, `%LOCALAPPDATA%` y `%TEMP%` apuntan al layout del contenedor.  
+   - Validar que `%APPDATA%`, `%LOCALAPPDATA%` y `%TEMP%` apuntan al layout del contenedor.  
    - Medir overhead de montajes WinFSP/Dokany.
 2. **Installer Capture**  
-   - Ejecutar instaladores MSI/EXE en sandbox y comparar outputs con el layout esperado.  
-   - Validar manifiestos y launchers autogenerados.
+   - Ejecutar instaladores en sandbox (PowerShell + hooks) y comparar outputs con el layout esperado.  
+   - Generar manifiestos/launchers automáticamente.
 3. **API/Backend**  
-   - Contratos REST/gRPC (`cargo test -p backend`) con migraciones SQLx y soporte SQLite/Postgres.  
-   - Escenarios de paginación, filtros y eliminación.  
-   - RPCs `List/Create/Get/Delete` cubiertos con `tonic`.
-4. **Frontend e2e**  
-   - Playwright (`npm run test:e2e`) con `webServer` que arranca Next.js y valida flujo “Dashboard lista vacía / contenedores existentes”.
-5. **CLI**  
-   - Tests contra backend mock Axum (`cargo test -p ctnr-cli`) para garantizar wiring y manejo de errores.
+   - `cargo test -p backend`: REST/gRPC, migraciones SQLx y SQLite/Postgres.  
+   - Cobertura de filtros/paginación, SSE (`/api/events/containers`) y colas Redis.  
+   - RPCs `List/Create/Get/Delete` mediante `tonic`.
+4. **Workers/Queues**  
+   - `cargo run -p backend --bin worker` + Redis para simular tareas `containers:create` y registrar resultados.  
+5. **Frontend e2e**  
+   - Playwright (`npm run test:e2e`) con Next.js en vivo y backend real cuando está disponible.
+6. **CLI**  
+   - Tests contra backend mock Axum (`cargo test -p ctnr-cli`).
 
 ## 3. Automatización
-- GitHub Actions: jobs independientes para agent, backend, frontend y CLI.
-- Ambientes Windows Server efímeros para validar hooks nativos y WinFSP.
-- Publicación de reportes y artefactos `.ctnr` en cada pipeline.
+- GitHub Actions: jobs independientes para agent, backend, frontend, CLI y worker.
+- Ambientes Windows Server efímeros para validar hooks nativos.
+- Publicación de reportes (`trace.zip`, cobertura) y artefactos `.ctnr`.
 
 ## 4. Cobertura y métricas
-- Objetivo: 70 % backend/agent, 60 % frontend.
+- Objetivo inicial: 70 % backend/agent, 60 % frontend.
 - Benchmarks periódicos para comparar overhead del runtime vs ejecución nativa.
+- Métricas Prometheus y logs estructurados (pendiente de automatizar en CI).
 
 ## 5. Próximos pasos
-1. Integrar `cargo-nextest`, `vitest` y Playwright en CI.
-2. Crear contenedores de referencia para pruebas automatizadas.
-3. Añadir suites e2e completas (crear contenedor, snapshot, exportación) antes de GA.
+1. Integrar `cargo-nextest`, `vitest` y Playwright en CI pipeline.  
+2. Crear contenedores de referencia para reutilizar en pruebas.  
+3. Añadir suites e2e completas (crear → capturar instalador → ejecutar) antes del GA.  
+4. Automatizar pruebas de hooks WinFSP/Dokany con VMs Windows Server.
 

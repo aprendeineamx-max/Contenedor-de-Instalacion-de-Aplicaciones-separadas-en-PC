@@ -2,7 +2,9 @@ pub mod app;
 pub mod config;
 pub mod grpc;
 pub mod queue;
+pub mod security;
 pub mod store;
+pub mod workers;
 
 pub mod proto {
     tonic::include_proto!("containers.v1");
@@ -54,7 +56,7 @@ pub async fn run() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn init_tracing() {
+pub fn init_tracing() {
     let _ = tracing_subscriber::fmt()
         .with_max_level(Level::INFO)
         .with_env_filter(

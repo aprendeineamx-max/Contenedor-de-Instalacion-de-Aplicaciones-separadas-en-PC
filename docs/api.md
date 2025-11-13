@@ -10,6 +10,7 @@ Base URL: `http://localhost:8080`
 | `POST` | `/api/containers` | Crea un contenedor y devuelve su resumen. |
 | `GET` | `/api/containers/:id` | Obtiene el detalle del contenedor. |
 | `DELETE` | `/api/containers/:id` | Elimina el contenedor indicado. |
+| `GET` | `/api/events/containers` | Stream SSE con snapshots periódicos. |
 
 ### Ejemplo `POST /api/containers`
 ```http
@@ -68,5 +69,9 @@ rpc ListContainers (ListContainersRequest) returns (ListContainersResponse);
 }
 ```
 
-La CLI y el panel web usan REST para administración interactiva, mientras que los agentes y servicios remotos se conectan al backend mediante gRPC.
+### Seguridad
+- Todas las rutas bajo `/api/*` aceptan `X-API-Key` (definir `CONTAINERS_API_KEY` en el backend).
+- Rate limiting: 120 req/min por instancia.
+- Logs y trazas HTTP (`tower-http::trace`) registran usuario, latencia y resultado.
 
+La CLI y el panel web usan REST + SSE para administración interactiva, mientras que los agentes y servicios remotos se conectan al backend mediante gRPC.
