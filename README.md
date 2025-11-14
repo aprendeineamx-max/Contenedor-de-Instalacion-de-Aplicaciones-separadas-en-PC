@@ -13,8 +13,8 @@ Plataforma para instalar y ejecutar aplicaciones Win32 dentro de contenedores po
 ## Requisitos
 - Rust 1.79+ (`rustup default stable`).
 - Node.js 20+ y `npm`.
-- PostgreSQL 14+ (`DATABASE_URL=postgres://containers:containers@localhost:5432/containers`).
-- Redis 7+ (`REDIS_URL=redis://localhost:6379`) para las colas de instalación.
+- PostgreSQL 14+ (`DATABASE_URL=postgres://containers:containers@localhost:5432/containers`). Si estás en Windows sin Docker consulta `docs/windows-native-stack.md` para usar instaladores nativos.
+- Redis 7+ (`REDIS_URL=redis://localhost:6379`) o Memurai como sustituto compatible.
 - WinFSP 2.x o Dokany 2.x + Microsoft Detours para los hooks nativos del agent.
 
 ## Variables de entorno clave
@@ -53,6 +53,8 @@ npm run dev
 npm run test:e2e
 ```
 
+> ¿Sin Docker en Windows (por ejemplo en VPS sin virtualización)? Ejecuta `scripts/windows/setup-postgres-redis.ps1` siguiendo la guía `docs/windows-native-stack.md` para instalar PostgreSQL/Memurai de forma nativa y continúa con los mismos comandos.
+
 ## APIs y características
 - **REST** (`docs/api.md`): `GET/POST/DELETE /api/containers`, `GET /api/containers/:id`, `/healthz`, `GET /api/events/containers` (SSE).
 - **gRPC** (`proto/containers.proto`): `containers.v1.ContainerService`.
@@ -77,4 +79,3 @@ npm run test:e2e
 - ✅ Panel con formularios reales, SSE y pruebas Playwright.
 - ✅ Worker Redis para futuras tareas de instalación/captura.
 - 🚧 Próximos pasos: pipeline completo de captura, UI de colas, autenticación OIDC, empaquetado MSI/installer y drivers WinFSP/Dokany firmados.
-
