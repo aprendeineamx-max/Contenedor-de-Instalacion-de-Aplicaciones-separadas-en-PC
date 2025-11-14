@@ -39,7 +39,17 @@ El script realiza lo siguiente:
 > **Nota:** Debes recordar la contraseña que elegiste para el superusuario `postgres` durante la instalación; el script la necesita para ejecutar `psql`.
 
 ## 3. Iniciar backend y worker
-Después de ejecutar el script (y abrir una nueva consola para tomar las variables):
+Después de ejecutar el script (y abrir una nueva consola para tomar las variables), puedes lanzar los procesos directamente:
+
+```powershell
+# Backend
+.\scripts\windows\start-backend.ps1
+
+# Worker
+.\scripts\windows\start-worker.ps1
+```
+
+Si prefieres ejecutarlo manualmente, estos son los comandos equivalentes:
 
 ```powershell
 # Consola A
