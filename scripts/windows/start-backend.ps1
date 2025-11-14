@@ -9,6 +9,10 @@ $pgEncoding = [Environment]::GetEnvironmentVariable("PGCLIENTENCODING","User")
 if ($pgEncoding) {
     $env:PGCLIENTENCODING = $pgEncoding
 }
+$pgOptions = [Environment]::GetEnvironmentVariable("PGOPTIONS","User")
+if ($pgOptions) {
+    $env:PGOPTIONS = $pgOptions
+}
 $env:DATABASE_URL = [Environment]::GetEnvironmentVariable("DATABASE_URL","User")
 $env:REDIS_URL = [Environment]::GetEnvironmentVariable("REDIS_URL","User")
 $env:CONTAINERS_API_KEY = [Environment]::GetEnvironmentVariable("CONTAINERS_API_KEY","User")
