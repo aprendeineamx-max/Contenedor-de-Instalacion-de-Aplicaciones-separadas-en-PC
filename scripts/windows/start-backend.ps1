@@ -1,6 +1,7 @@
 $ErrorActionPreference = "Stop"
 
-Set-Location "C:\Users\Administrator\Desktop\Contenedor de Instalación de Aplicaciones separadas en PC"
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
+Set-Location $repoRoot
 
 $env:PATH = "$Env:USERPROFILE\.cargo\bin;$env:PATH"
 $env:DATABASE_URL = [Environment]::GetEnvironmentVariable("DATABASE_URL","User")
