@@ -20,6 +20,15 @@ cd C:\Users\Administrator\Desktop\Contenedor de Instalación de Aplicaciones sep
   -ApiKey "super-secreto"
 ```
 
+> En este entorno ya se ejecutó el script con los siguientes valores:
+> - Superusuario PostgreSQL: `postgres` (contraseña: `postgres`)
+> - Usuario de aplicación: `containers_app`
+> - Contraseña de la aplicación: `C0ntainers!2025#`
+> - Base de datos: `containers`
+> - API key: `ctnr_api_7f2c9b1b2c874d90`
+>
+> Las variables `DATABASE_URL`, `REDIS_URL` y `CONTAINERS_API_KEY` quedaron grabadas en el perfil del usuario de Windows, por lo que cualquier consola nueva puede recuperarlas con `GetEnvironmentVariable`.
+
 El script realiza lo siguiente:
 1. Instala PostgreSQL 16 y Memurai Developer (Redis compatible) si no existen.
 2. Inicia los servicios `postgresql-x64-16` y `Memurai`.

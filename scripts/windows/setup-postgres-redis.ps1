@@ -128,7 +128,7 @@ if ([string]::IsNullOrWhiteSpace($dbExists)) {
 }
 
 # Configurar variables de entorno de la app
-[Environment]::SetEnvironmentVariable("DATABASE_URL", "postgres://$AppUser:$AppPassword@localhost:5432/$Database", "User")
+[Environment]::SetEnvironmentVariable("DATABASE_URL", "postgres://${AppUser}:${AppPassword}@localhost:5432/${Database}", "User")
 [Environment]::SetEnvironmentVariable("REDIS_URL", "redis://localhost:6379", "User")
 [Environment]::SetEnvironmentVariable("CONTAINERS_API_KEY", $ApiKey, "User")
 
