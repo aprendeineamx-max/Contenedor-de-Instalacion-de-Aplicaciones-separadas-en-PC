@@ -4,6 +4,7 @@ $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 Set-Location $repoRoot
 
 $env:PATH = "$Env:USERPROFILE\.cargo\bin;$env:PATH"
+$env:PROTOC = [Environment]::GetEnvironmentVariable("PROTOC","User")
 $env:DATABASE_URL = [Environment]::GetEnvironmentVariable("DATABASE_URL","User")
 $env:REDIS_URL = [Environment]::GetEnvironmentVariable("REDIS_URL","User")
 $env:CONTAINERS_API_KEY = [Environment]::GetEnvironmentVariable("CONTAINERS_API_KEY","User")
