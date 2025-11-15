@@ -23,7 +23,7 @@ cd C:\Users\Administrator\Desktop\Contenedor de Instalación de Aplicaciones sep
 > En este entorno ya se ejecutó el script con los siguientes valores:
 > - Superusuario PostgreSQL: `postgres` (contraseña: `postgres`)
 > - Usuario de aplicación: `containers_app`
-> - Contraseña de la aplicación: `C0ntainers!2025#`
+> - Contraseña de la aplicación: `C0ntainers2025_Zb9p`
 > - Base de datos: `containers`
 > - API key: `ctnr_api_7f2c9b1b2c874d90`
 >
@@ -65,8 +65,8 @@ cargo run -p backend --bin worker
 ```
 
 ## 4. Verificación rápida
-- `psql -U containers -d containers -c "\dt"` — comprueba la base.
-- `redis-cli ping` (instalado junto a Memurai) — debe responder `PONG`.
+- `psql -U containers_app -d containers -c "\dt"` – comprueba la base.
+- `& "$env:ProgramFiles\Memurai\memurai-cli.exe" ping` – debe responder `PONG`.
 - `http://localhost:8080/healthz` — backend arriba.
 
 ## 5. Troubleshooting

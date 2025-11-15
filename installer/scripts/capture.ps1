@@ -29,9 +29,16 @@ New-Item -ItemType Directory -Force -Path @(
 
 $logDir = Join-Path $ContainerRoot "installer-logs"
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-$logFile = Join-Path $logDir "$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$stdoutLog = Join-Path $logDir "$timestamp.out.log"
+$stderrLog = Join-Path $logDir "$timestamp.err.log"
 
 Write-Host "[capture] Ejecutando instalador..."
-Start-Process -FilePath $InstallerPath -ArgumentList $Arguments -Wait -NoNewWindow -RedirectStandardOutput $logFile -RedirectStandardError $logFile
+Start-Process -FilePath $InstallerPath -ArgumentList $Arguments `
+    -Wait -NoNewWindow `
+    -RedirectStandardOutput $stdoutLog `
+    -RedirectStandardError $stderrLog
 
-Write-Host "[capture] Instalación finalizada. Registros en $logFile"
+Write-Host "[capture] Instalación finalizada. Registros en:"
+Write-Host "  * STDOUT: $stdoutLog"
+Write-Host "  * STDERR: $stderrLog"

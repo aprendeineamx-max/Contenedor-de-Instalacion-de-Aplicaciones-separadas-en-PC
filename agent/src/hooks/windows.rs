@@ -1,6 +1,6 @@
 use crate::runtime::{HookPlan, PathRedirect};
 use anyhow::{Context, Result};
-use detour::static_detour;
+use retour::static_detour;
 use once_cell::sync::OnceCell;
 use std::{
     ffi::OsString,
@@ -10,20 +10,18 @@ use std::{
 };
 use tracing::{info, warn};
 use widestring::U16CString;
-use windows::{
-    core::PCWSTR,
-    Win32::{
-        Foundation::HANDLE,
-        Security::SECURITY_ATTRIBUTES,
-        Storage::FileSystem::{CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE},
-        System::SystemServices::GENERIC_ACCESS_RIGHTS,
+use windows_sys::Win32::{
+    Foundation::HANDLE,
+    Security::SECURITY_ATTRIBUTES,
+    Storage::FileSystem::{
+        CreateFileW, FILE_ACCESS_RIGHTS, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_MODE,
     },
 };
 
 static_detour! {
     static CreateFileHook: unsafe extern "system" fn(
-        PCWSTR,
-        GENERIC_ACCESS_RIGHTS,
+        *const u16,
+        FILE_ACCESS_RIGHTS,
         FILE_SHARE_MODE,
         *const SECURITY_ATTRIBUTES,
         u32,
@@ -51,7 +49,26 @@ impl DetoursHookManager {
         unsafe {
             if !CreateFileHook.is_enabled() {
                 CreateFileHook
-                    .initialize(CreateFileW, create_file_redirect)
+                    .initialize(
+                        CreateFileW,
+                        |file_name,
+                         desired_access,
+                         share_mode,
+                         security_attributes,
+                         creation_disposition,
+                         flags,
+                         template_file| unsafe {
+                            create_file_redirect(
+                                file_name,
+                                desired_access,
+                                share_mode,
+                                security_attributes,
+                                creation_disposition,
+                                flags,
+                                template_file,
+                            )
+                        },
+                    )
                     .context("No se pudo inicializar el hook CreateFileW")?;
                 CreateFileHook
                     .enable()
@@ -91,8 +108,8 @@ impl PlanContext {
 }
 
 unsafe extern "system" fn create_file_redirect(
-    file_name: PCWSTR,
-    desired_access: GENERIC_ACCESS_RIGHTS,
+    file_name: *const u16,
+    desired_access: FILE_ACCESS_RIGHTS,
     share_mode: FILE_SHARE_MODE,
     security_attributes: *const SECURITY_ATTRIBUTES,
     creation_disposition: u32,
@@ -119,9 +136,8 @@ unsafe extern "system" fn create_file_redirect(
 
     if let Some(redirected) = maybe_redirect {
         if let Ok(wide) = U16CString::from_os_str(redirected.as_os_str()) {
-            let new_ptr = PCWSTR(wide.as_ptr());
             return CreateFileHook.call(
-                new_ptr,
+                wide.as_ptr(),
                 desired_access,
                 share_mode,
                 security_attributes,
@@ -145,18 +161,18 @@ unsafe extern "system" fn create_file_redirect(
     )
 }
 
-fn pcwstr_to_path(value: PCWSTR) -> PathBuf {
+fn pcwstr_to_path(value: *const u16) -> PathBuf {
     if value.is_null() {
         return PathBuf::new();
     }
     unsafe {
         let mut len = 0;
-        let mut ptr = value.0;
-        while *ptr != 0 {
+        let mut ptr = value;
+        while ptr.read() != 0 {
             len += 1;
             ptr = ptr.add(1);
         }
-        let slice = std::slice::from_raw_parts(value.0, len);
+        let slice = std::slice::from_raw_parts(value, len);
         OsString::from_wide(slice).into()
     }
 }

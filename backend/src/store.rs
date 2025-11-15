@@ -1,16 +1,15 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::{
-    any::{install_default_drivers, AnyPoolOptions, AnyRow},
-    AnyPool, QueryBuilder, Row,
+    postgres::{PgPoolOptions, PgRow},
+    PgPool, Postgres, QueryBuilder, Row,
 };
-use std::path::PathBuf;
-use tokio::fs;
+use tracing::error;
 use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct Store {
-    pool: AnyPool,
+    pool: PgPool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -29,8 +28,8 @@ pub struct ListFilter {
     pub offset: i64,
 }
 
-impl<'r> sqlx::FromRow<'r, AnyRow> for ContainerRecord {
-    fn from_row(row: &'r AnyRow) -> Result<Self, sqlx::Error> {
+impl<'r> sqlx::FromRow<'r, PgRow> for ContainerRecord {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
         let id: String = row.try_get("id")?;
         let name: String = row.try_get("name")?;
         let status: String = row.try_get("status")?;
@@ -52,38 +51,16 @@ impl<'r> sqlx::FromRow<'r, AnyRow> for ContainerRecord {
 
 impl Store {
     pub async fn open(database_url: &str) -> Result<Self> {
-        install_default_drivers();
-        if let Some(path) = Self::sqlite_path(database_url) {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).await?;
-            }
-        }
-
-        let max_conns = if database_url.starts_with("sqlite::memory") {
-            1
-        } else {
-            10
-        };
-
-        let pool = AnyPoolOptions::new()
-            .max_connections(max_conns)
+        let pool = PgPoolOptions::new()
+            .max_connections(10)
             .connect(database_url)
             .await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
         Ok(Self { pool })
     }
 
-    fn sqlite_path(url: &str) -> Option<PathBuf> {
-        if url.starts_with("sqlite://") {
-            let path = url.trim_start_matches("sqlite://");
-            Some(PathBuf::from(path))
-        } else {
-            None
-        }
-    }
-
     pub async fn list(&self, filter: &ListFilter) -> Result<Vec<ContainerRecord>> {
-        let mut builder = QueryBuilder::new(
+        let mut builder = QueryBuilder::<Postgres>::new(
             "SELECT id, name, COALESCE(version, '') AS version, status FROM containers WHERE 1=1",
         );
 
@@ -93,9 +70,9 @@ impl Store {
 
         if let Some(search) = &filter.search {
             builder
-                .push(" AND (name LIKE ")
+                .push(" AND (name ILIKE ")
                 .push_bind(format!("%{search}%"))
-                .push(" OR id LIKE ")
+                .push(" OR id ILIKE ")
                 .push_bind(format!("%{search}%"))
                 .push(")");
         }
@@ -120,20 +97,26 @@ impl Store {
             status: "draft".into(),
         };
 
-        sqlx::query("INSERT INTO containers (id, name, version, status) VALUES (?, ?, ?, ?)")
-            .bind(&record.id)
-            .bind(&record.name)
-            .bind(&record.version)
-            .bind(&record.status)
-            .execute(&self.pool)
-            .await?;
+        if let Err(err) = sqlx::query(
+            "INSERT INTO containers (id, name, version, status) VALUES ($1, $2, $3, $4)",
+        )
+        .bind(&record.id)
+        .bind(&record.name)
+        .bind(&record.version)
+        .bind(&record.status)
+        .execute(&self.pool)
+        .await
+        {
+            error!(?err, container = ?record.name, "Failed to persist container");
+            return Err(err.into());
+        }
 
         Ok(record)
     }
 
     pub async fn get(&self, id: &str) -> Result<Option<ContainerRecord>> {
         let row = sqlx::query_as::<_, ContainerRecord>(
-            "SELECT id, name, COALESCE(version, '') AS version, status FROM containers WHERE id = ?",
+            "SELECT id, name, COALESCE(version, '') AS version, status FROM containers WHERE id = $1",
         )
         .bind(id)
         .fetch_optional(&self.pool)
@@ -142,7 +125,7 @@ impl Store {
     }
 
     pub async fn delete(&self, id: &str) -> Result<bool> {
-        let result = sqlx::query("DELETE FROM containers WHERE id = ?")
+        let result = sqlx::query("DELETE FROM containers WHERE id = $1")
             .bind(id)
             .execute(&self.pool)
             .await?;

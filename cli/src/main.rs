@@ -12,6 +12,10 @@ struct Cli {
     /// Endpoint del backend (por defecto localhost:8080)
     #[arg(global = true, long, default_value = "http://127.0.0.1:8080")]
     api: String,
+
+    /// API key a enviar en `x-api-key`
+    #[arg(global = true, long)]
+    api_key: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -24,16 +28,22 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let mut cli = Cli::parse();
+    if cli.api_key.is_none() {
+        cli.api_key = std::env::var("CONTAINERS_API_KEY").ok();
+    }
+
     match &cli.command {
-        Commands::List => list_containers(&cli.api).await?,
-        Commands::Create { name } => create_container(&cli.api, name).await?,
+        Commands::List => list_containers(&cli.api, cli.api_key.as_deref()).await?,
+        Commands::Create { name } => {
+            create_container(&cli.api, cli.api_key.as_deref(), name).await?
+        }
     }
     Ok(())
 }
 
-async fn list_containers(api: &str) -> Result<()> {
-    let containers = fetch_containers(api).await?;
+async fn list_containers(api: &str, api_key: Option<&str>) -> Result<()> {
+    let containers = fetch_containers(api, api_key).await?;
     if containers.is_empty() {
         println!("No hay contenedores registrados todavía.");
     } else {
@@ -44,26 +54,40 @@ async fn list_containers(api: &str) -> Result<()> {
     Ok(())
 }
 
-async fn create_container(api: &str, name: &str) -> Result<()> {
-    let container = send_create(api, name).await?;
+async fn create_container(api: &str, api_key: Option<&str>, name: &str) -> Result<()> {
+    let container = send_create(api, api_key, name).await?;
     println!("Contenedor creado: {} ({})", container.name, container.id);
     Ok(())
 }
 
-pub(crate) async fn fetch_containers(api: &str) -> Result<Vec<Container>> {
+pub(crate) async fn fetch_containers(api: &str, api_key: Option<&str>) -> Result<Vec<Container>> {
     let url = format!("{api}/api/containers");
-    let resp = reqwest::get(url).await?.json::<Vec<Container>>().await?;
+    let client = reqwest::Client::new();
+    let mut request = client.get(url);
+    if let Some(key) = api_key {
+        request = request.header("x-api-key", key);
+    }
+    let resp = request
+        .send()
+        .await?
+        .error_for_status()?
+        .json::<Vec<Container>>()
+        .await?;
     Ok(resp)
 }
 
-pub(crate) async fn send_create(api: &str, name: &str) -> Result<Container> {
+pub(crate) async fn send_create(api: &str, api_key: Option<&str>, name: &str) -> Result<Container> {
     let url = format!("{api}/api/containers");
     let payload = serde_json::json!({ "name": name });
-    let resp = reqwest::Client::new()
-        .post(url)
-        .json(&payload)
+    let client = reqwest::Client::new();
+    let mut request = client.post(url).json(&payload);
+    if let Some(key) = api_key {
+        request = request.header("x-api-key", key);
+    }
+    let resp = request
         .send()
         .await?
+        .error_for_status()?
         .json::<Container>()
         .await?;
     Ok(resp)
@@ -137,13 +161,13 @@ mod tests {
     #[tokio::test]
     async fn cli_roundtrip_against_mock_backend() -> Result<()> {
         let (api, handle) = spawn_server().await;
-        let empty = fetch_containers(&api).await?;
+        let empty = fetch_containers(&api, None).await?;
         assert!(empty.is_empty());
 
-        let created = send_create(&api, "demo-app").await?;
+        let created = send_create(&api, None, "demo-app").await?;
         assert_eq!(created.name, "demo-app");
 
-        let list = fetch_containers(&api).await?;
+        let list = fetch_containers(&api, None).await?;
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].name, "demo-app");
 
